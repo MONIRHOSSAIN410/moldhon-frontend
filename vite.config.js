@@ -9,9 +9,23 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
-        build: {
-    chunkSizeWarningLimit: 1600, // Raises warning threshold from 500kB to 1600kB
-  },
+ build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('recharts') || id.includes('chart.js')) {
+              return 'charts';
+            }
+            if (id.includes('lucide-react')) {
+              return 'icons';
+            }
+            return 'vendor';
+          }
+        }
+      }
+    }
+  }
         
       },
     },
