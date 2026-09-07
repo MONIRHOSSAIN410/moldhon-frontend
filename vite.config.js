@@ -9,7 +9,10 @@ export default defineConfig({
       '/api': {
         target: 'https://moldhon-backend-btvt.vercel.app/',
         changeOrigin: true,
- build: {
+      },
+    },
+  },
+  build: {
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -22,11 +25,7 @@ export default defineConfig({
             }
             return 'vendor';
           }
-        }
-      }
-    }
-  }
-        
+        },
       },
     },
   },
