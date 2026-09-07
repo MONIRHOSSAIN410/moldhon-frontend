@@ -15,13 +15,26 @@ const Login = () => {
 
   const onSubmit = async (e) => {
     e.preventDefault();
+    if (busy) return; // Prevent duplicate submissions via Enter key
+
     setError('');
-    if (form.password.length < 4) return setError('Password must be at least 4 characters.');
+    if (form.password.length < 4) {
+      return setError('Password must be at least 4 characters.');
+    }
+
     setBusy(true);
-    const res = await login(form.email, form.password);
-    setBusy(false);
-    if (res.ok) navigate('/dashboard');
-    else setError(res.message);
+    try {
+      const res = await login(form.email, form.password);
+      if (res?.ok) {
+        navigate('/dashboard');
+      } else {
+        setError(res?.message || 'Login failed. Please check your credentials.');
+      }
+    } catch (err) {
+      setError(err?.message || 'An unexpected error occurred. Please try again.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -57,7 +70,8 @@ const Login = () => {
                 id="email"
                 type="email"
                 required
-                className="input pl-10"
+                disabled={busy}
+                className="input pl-10 disabled:opacity-60"
                 placeholder="admin@muldhon.com"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -75,7 +89,8 @@ const Login = () => {
                 id="password"
                 type={show ? 'text' : 'password'}
                 required
-                className="input pl-10 pr-10"
+                disabled={busy}
+                className="input pl-10 pr-10 disabled:opacity-60"
                 placeholder="••••••"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
@@ -84,7 +99,7 @@ const Login = () => {
                 type="button"
                 onClick={() => setShow((s) => !s)}
                 aria-label={show ? 'Hide password' : 'Show password'}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft transition hover:text-ink"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft transition hover:text-ink focus:outline-none"
               >
                 {show ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -102,13 +117,19 @@ const Login = () => {
           )}
 
           <motion.button
-            whileTap={{ scale: 0.98 }}
+            whileTap={!busy ? { scale: 0.98 } : {}}
             type="submit"
             disabled={busy}
-            className="btn-primary w-full py-3"
+            className="btn-primary flex w-full items-center justify-center gap-2 py-3 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {busy && <Loader2 size={16} className="animate-spin" />}
-            Login
+            {busy ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Signing in...</span>
+              </>
+            ) : (
+              'Login'
+            )}
           </motion.button>
         </form>
       </div>
