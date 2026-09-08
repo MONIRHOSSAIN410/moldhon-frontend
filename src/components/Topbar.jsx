@@ -47,7 +47,7 @@ const Topbar = ({ onMenu }) => {
           className="flex items-center gap-2 rounded-full border border-line bg-white py-1 pl-3 pr-1 transition hover:bg-brand-50"
         >
           <span className="hidden text-[13px] font-semibold sm:block">{user?.fullName || 'Admin'}</span>
-          <Avatar src={user?.avatar} name={user?.fullName} size={28} />
+          <Avatar src={user?.avatar} name={user?.fullName} gender={user?.gender} size={28} />
         </button>
 
         <button

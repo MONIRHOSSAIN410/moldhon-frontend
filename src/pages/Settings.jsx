@@ -191,7 +191,7 @@ const Settings = () => {
                       title="Change profile photo"
                       className="group relative rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/25"
                     >
-                      <Avatar src={avatarPreview} name={user?.fullName} size={72} />
+                      <Avatar src={avatarPreview} name={user?.fullName} gender={profile.gender} size={72} />
                       <span className="absolute -bottom-0.5 -right-0.5 grid h-6 w-6 place-items-center rounded-full border-2 border-white bg-brand-600 text-white transition group-hover:bg-brand-700">
                         {uploading ? (
                           <Loader2 size={12} className="animate-spin" />

@@ -3,24 +3,51 @@ import api from '../api/axios';
 
 const AuthContext = createContext(null);
 
+const TOKEN_KEY = 'muldhon_token';
+const USER_KEY = 'muldhon_user';
+
 const readStoredUser = () => {
   try {
-    const cached = localStorage.getItem('muldhon_user');
+    const cached = localStorage.getItem(USER_KEY);
     if (!cached || cached === 'undefined' || cached === 'null') return null;
     return JSON.parse(cached);
   } catch {
-    localStorage.removeItem('muldhon_user');
+    localStorage.removeItem(USER_KEY);
     return null;
   }
 };
 
-const DEMO_USER = {
-  _id: 'demo-admin',
-  fullName: 'Arghya Biswas',
-  email: 'admin@muldhon.com',
-  role: 'admin',
-  avatar: 'https://i.pravatar.cc/150?u=admin',
-  demo: true,
+/**
+ * Turn an axios failure into a message a person can act on.
+ *
+ * Previously every failure collapsed into "Login failed" / "Registration
+ * failed", which hid the two things that actually go wrong:
+ *   - the API is not running (no response at all), and
+ *   - the API answered, but with an HTML error page (a gateway timeout when
+ *     the database is unreachable), so there is no JSON `message` to read.
+ */
+const describeError = (error, fallback) => {
+  if (error?.code === 'ERR_CANCELED') return 'Request cancelled.';
+
+  // No response: server down, wrong URL, or blocked by CORS.
+  if (!error?.response) {
+    return 'Cannot reach the server. Start the API (npm run dev in the server folder) and check VITE_API_URL in client/.env.';
+  }
+
+  const { status, data } = error.response;
+
+  // The API always answers with { success:false, message:"..." }. Anything
+  // else (a string of HTML, an empty body) means the request never reached
+  // the Express error handler.
+  if (data && typeof data === 'object' && data.message) return data.message;
+
+  if (status === 504 || status === 502) {
+    return 'The server timed out — it is most likely unable to reach MongoDB. Check MONGO_URI.';
+  }
+  if (status === 404) {
+    return 'API route not found (404). Check that the API base URL ends with /api.';
+  }
+  return `${fallback} (server responded ${status}).`;
 };
 
 export const AuthProvider = ({ children }) => {
@@ -29,43 +56,58 @@ export const AuthProvider = ({ children }) => {
 
   const persist = useCallback((token, nextUser) => {
     if (!nextUser || typeof nextUser !== 'object') return false;
-    if (token) localStorage.setItem('muldhon_token', token);
-    localStorage.setItem('muldhon_user', JSON.stringify(nextUser));
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
     setUser(nextUser);
     return true;
   }, []);
 
+  const clearSession = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    setUser(null);
+  }, []);
+
+  // On boot, re-read the signed-in account from the server so the dashboard
+  // always shows the real person behind the token — their name, gender,
+  // role and photo — instead of a stale or placeholder profile.
   useEffect(() => {
     const boot = async () => {
-      const token = localStorage.getItem('muldhon_token');
-      if (!token) return setLoading(false);
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (!token) {
+        clearSession();
+        return setLoading(false);
+      }
       try {
         const { data } = await api.get('/auth/me');
         persist(null, data.user);
-      } catch {
-        /* keep cached user — server may simply be offline */
+      } catch (error) {
+        // Only a rejected token means "signed out". A network blip should not
+        // throw the user back to the login page.
+        if (error?.response?.status === 401) clearSession();
       } finally {
         setLoading(false);
       }
     };
     boot();
-  }, [persist]);
+  }, [persist, clearSession]);
 
   const login = useCallback(
     async (email, password) => {
       try {
-        const { data } = await api.post('/auth/login', { email, password });
-        if (persist(data.token, data.user)) return { ok: true };
-        // Server reachable but sent no user (e.g. static host) — fall back to demo.
-        persist('demo-token', { ...DEMO_USER, email });
-        return { ok: true, demo: true };
-      } catch (error) {
-        // Offline demo mode: any email + 4+ char password signs in locally.
-        if (!error.response && password?.length >= 4) {
-          persist('demo-token', { ...DEMO_USER, email });
-          return { ok: true, demo: true };
+        const { data } = await api.post('/auth/login', {
+          email: String(email || '').trim().toLowerCase(),
+          password,
+        });
+
+        if (!data?.token || !data?.user) {
+          return { ok: false, message: 'The server did not return an account. Check the API URL.' };
         }
-        return { ok: false, message: error.response?.data?.message || 'Login failed' };
+
+        persist(data.token, data.user);
+        return { ok: true, user: data.user };
+      } catch (error) {
+        return { ok: false, message: describeError(error, 'Login failed') };
       }
     },
     [persist]
@@ -74,16 +116,19 @@ export const AuthProvider = ({ children }) => {
   const register = useCallback(
     async (payload) => {
       try {
-        const { data } = await api.post('/auth/register', payload);
-        if (persist(data.token, data.user)) return { ok: true };
-        persist('demo-token', { ...DEMO_USER, ...payload });
-        return { ok: true, demo: true };
-      } catch (error) {
-        if (!error.response) {
-          persist('demo-token', { ...DEMO_USER, ...payload, role: payload.role });
-          return { ok: true, demo: true };
+        const { data } = await api.post('/auth/register', {
+          ...payload,
+          email: String(payload.email || '').trim().toLowerCase(),
+        });
+
+        if (!data?.token || !data?.user) {
+          return { ok: false, message: 'The server did not return an account. Check the API URL.' };
         }
-        return { ok: false, message: error.response?.data?.message || 'Registration failed' };
+
+        persist(data.token, data.user);
+        return { ok: true, user: data.user };
+      } catch (error) {
+        return { ok: false, message: describeError(error, 'Registration failed') };
       }
     },
     [persist]
@@ -93,12 +138,10 @@ export const AuthProvider = ({ children }) => {
     try {
       await api.post('/auth/logout');
     } catch {
-      /* ignore */
+      /* signing out locally is enough */
     }
-    localStorage.removeItem('muldhon_token');
-    localStorage.removeItem('muldhon_user');
-    setUser(null);
-  }, []);
+    clearSession();
+  }, [clearSession]);
 
   const updateProfile = useCallback(
     async (payload) => {
@@ -107,14 +150,10 @@ export const AuthProvider = ({ children }) => {
         persist(null, data.user);
         return { ok: true };
       } catch (error) {
-        if (!error.response) {
-          persist(null, { ...user, ...payload });
-          return { ok: true, demo: true };
-        }
-        return { ok: false, message: error.response?.data?.message || 'Update failed' };
+        return { ok: false, message: describeError(error, 'Update failed') };
       }
     },
-    [persist, user]
+    [persist]
   );
 
   const value = useMemo(

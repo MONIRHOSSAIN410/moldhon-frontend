@@ -113,7 +113,7 @@ const Messages = () => {
                   }`}
                 >
                   <div className="relative">
-                    <Avatar src={c.avatar} name={c.fullName} size={36} />
+                    <Avatar src={c.avatar} name={c.fullName} gender={c.gender} size={36} />
                     {c.online && (
                       <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-brand-500" />
                     )}
@@ -149,7 +149,7 @@ const Messages = () => {
             >
               <ArrowLeft size={16} />
             </button>
-            <Avatar src={active?.avatar} name={active?.fullName} size={38} />
+            <Avatar src={active?.avatar} name={active?.fullName} gender={active?.gender} size={38} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[14px] font-semibold text-ink">{active?.fullName}</p>
               <p className="flex items-center gap-1.5 text-[11.5px] text-brand-600">

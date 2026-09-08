@@ -67,7 +67,7 @@ const Investors = () => {
                 className="flex items-center gap-3 rounded-xl px-2 py-2.5 transition hover:bg-brand-50/50"
               >
                 <span className="w-5 text-center text-base">{medals[i] || <Trophy size={14} />}</span>
-                <Avatar src={t.avatar} name={t.fullName} size={34} />
+                <Avatar src={t.avatar} name={t.fullName} gender={t.gender} size={34} />
                 <p className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-ink">{t.fullName}</p>
                 <span className="shrink-0 text-[13px] font-bold text-brand-700">{bdt(t.totalInvested)}</span>
               </motion.li>

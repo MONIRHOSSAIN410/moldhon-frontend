@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { defaultAvatar } from '../../utils/avatar';
 
-export const Avatar = ({ src, name = '', size = 36, ring = false }) => {
+/**
+ * `gender` gives an account without an uploaded photo the right placeholder:
+ * a male silhouette for a male account, a female one for a female account.
+ */
+export const Avatar = ({ src, name = '', size = 36, ring = false, gender = '' }) => {
   const [broken, setBroken] = useState(false);
 
   // Clear the failure flag whenever a new image is supplied, otherwise one
@@ -18,6 +23,8 @@ export const Avatar = ({ src, name = '', size = 36, ring = false }) => {
     .join('')
     .toUpperCase();
 
+  const shown = src && !broken ? src : gender ? defaultAvatar(gender) : '';
+
   return (
     <div
       className={`relative shrink-0 overflow-hidden rounded-full bg-brand-100 ${
@@ -25,9 +32,9 @@ export const Avatar = ({ src, name = '', size = 36, ring = false }) => {
       }`}
       style={{ width: size, height: size }}
     >
-      {src && !broken ? (
+      {shown ? (
         <img
-          src={src}
+          src={shown}
           alt={name}
           onError={() => setBroken(true)}
           className="h-full w-full object-cover"
