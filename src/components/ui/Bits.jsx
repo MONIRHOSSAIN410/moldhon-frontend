@@ -1,8 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
 export const Avatar = ({ src, name = '', size = 36, ring = false }) => {
   const [broken, setBroken] = useState(false);
+
+  // Clear the failure flag whenever a new image is supplied, otherwise one
+  // broken URL would permanently hide every photo uploaded afterwards.
+  useEffect(() => {
+    setBroken(false);
+  }, [src]);
+
   const initials = name
     .split(' ')
     .filter(Boolean)

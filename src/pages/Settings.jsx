@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Lock, Bell, BadgeCheck, Camera, Trash2, Save, Loader2 } from 'lucide-react';
+import { fileToAvatarDataUrl, validateImage, ACCEPTED_TYPES } from '../utils/image';
 import api from '../api/axios';
 import { Card, Avatar } from '../components/ui/Bits';
 import { useAuth } from '../context/AuthContext';
@@ -40,6 +41,63 @@ const Settings = () => {
     residentialAddress: user?.residentialAddress || '',
   });
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirm: '' });
+
+  // --- Profile photo ---------------------------------------------------
+  const fileRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  // Shows the new photo immediately, before the save round-trip finishes.
+  const [avatarPreview, setAvatarPreview] = useState(user?.avatar || '');
+
+  // Keep the preview in sync when the user object arrives or changes.
+  useEffect(() => {
+    setAvatarPreview(user?.avatar || '');
+  }, [user?.avatar]);
+
+  const pickPhoto = () => fileRef.current?.click();
+
+  const onPhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    // Reset so picking the same file twice still fires onChange.
+    e.target.value = '';
+    if (!file) return;
+
+    const invalid = validateImage(file);
+    if (invalid) return flash(invalid);
+
+    setUploading(true);
+    const previous = avatarPreview;
+    try {
+      const dataUrl = await fileToAvatarDataUrl(file);
+      setAvatarPreview(dataUrl);
+
+      const res = await updateProfile({ avatar: dataUrl });
+      if (res.ok) {
+        flash(res.demo ? 'Photo saved locally (server offline)' : 'Profile photo updated');
+      } else {
+        setAvatarPreview(previous); // roll back so the UI matches the server
+        flash(res.message || 'Could not save the photo');
+      }
+    } catch (error) {
+      setAvatarPreview(previous);
+      flash(error.message || 'Could not process that image');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removePhoto = async () => {
+    setUploading(true);
+    const previous = avatarPreview;
+    setAvatarPreview('');
+    const res = await updateProfile({ avatar: '' });
+    if (!res.ok) {
+      setAvatarPreview(previous);
+      flash(res.message || 'Could not remove the photo');
+    } else {
+      flash('Profile photo removed');
+    }
+    setUploading(false);
+  };
   const [prefs, setPrefs] = useState(user?.notificationPrefs || { email: true, push: true, sms: false });
 
   const set = (k) => (e) => setProfile({ ...profile, [k]: e.target.value });
@@ -127,16 +185,47 @@ const Settings = () => {
               {tab === 'profile' && (
                 <form onSubmit={saveProfile} className="space-y-5">
                   <div className="flex flex-wrap items-center gap-4">
-                    <div className="relative">
-                      <Avatar src={user?.avatar} name={user?.fullName} size={72} />
-                      <span className="absolute -bottom-0.5 -right-0.5 grid h-6 w-6 place-items-center rounded-full border-2 border-white bg-brand-600 text-white">
-                        <Camera size={12} />
+                    <button
+                      type="button"
+                      onClick={pickPhoto}
+                      title="Change profile photo"
+                      className="group relative rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/25"
+                    >
+                      <Avatar src={avatarPreview} name={user?.fullName} size={72} />
+                      <span className="absolute -bottom-0.5 -right-0.5 grid h-6 w-6 place-items-center rounded-full border-2 border-white bg-brand-600 text-white transition group-hover:bg-brand-700">
+                        {uploading ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Camera size={12} />
+                        )}
                       </span>
-                    </div>
-                    <button type="button" className="btn-primary py-2 text-xs">
-                      Change Photo
                     </button>
-                    <button type="button" className="btn-ghost py-2 text-xs text-rose-500">
+
+                    {/* Hidden native picker driven by the buttons above/below. */}
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept={ACCEPTED_TYPES.join(',')}
+                      onChange={onPhotoChange}
+                      className="hidden"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={pickPhoto}
+                      disabled={uploading}
+                      className="btn-primary py-2 text-xs"
+                    >
+                      {uploading ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+                      {uploading ? 'Uploading…' : 'Change Photo'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={removePhoto}
+                      disabled={uploading || !avatarPreview}
+                      className="btn-ghost py-2 text-xs text-rose-500 disabled:opacity-40"
+                    >
                       <Trash2 size={14} /> Delete avatar
                     </button>
                   </div>
